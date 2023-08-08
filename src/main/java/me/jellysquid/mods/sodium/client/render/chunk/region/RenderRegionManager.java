@@ -17,7 +17,10 @@ import me.jellysquid.mods.sodium.client.render.chunk.terrain.DefaultTerrainRende
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
 
 public class RenderRegionManager {
     private final Long2ReferenceOpenHashMap<RenderRegion> regions = new Long2ReferenceOpenHashMap<>();
@@ -143,6 +146,18 @@ public class RenderRegionManager {
         }
 
         return instance;
+    }
+
+    public RenderRegion getRegionForSection(int chunkX, int chunkY, int chunkZ) {
+        var x = chunkX >> RenderRegion.REGION_WIDTH_SH;
+        var y = chunkY >> RenderRegion.REGION_HEIGHT_SH;
+        var z = chunkZ >> RenderRegion.REGION_LENGTH_SH;
+
+        return this.regions.get(RenderRegion.key(x, y, z));
+    }
+
+    public RenderRegion getRegion(long key) {
+        return this.regions.get(key);
     }
 
     private record PendingSectionUpload(RenderSection section, BuiltSectionMeshParts meshData, TerrainRenderPass pass, PendingUpload vertexUpload) {

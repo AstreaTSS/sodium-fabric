@@ -1,15 +1,19 @@
 package me.jellysquid.mods.sodium.client.render.chunk.lists;
 
-import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
-import me.jellysquid.mods.sodium.client.render.chunk.RenderSectionFlags;
+import me.jellysquid.mods.sodium.client.render.chunk.occlusion.GraphNodeFlags;
+import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
+import me.jellysquid.mods.sodium.client.util.collections.BitArray;
+import me.jellysquid.mods.sodium.client.util.iterator.ByteArrayIterator;
 import me.jellysquid.mods.sodium.client.util.iterator.ByteIterator;
 import me.jellysquid.mods.sodium.client.util.iterator.ReversibleByteArrayIterator;
-import me.jellysquid.mods.sodium.client.util.iterator.ByteArrayIterator;
-import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.BitSet;
 
 public class ChunkRenderList {
     private final RenderRegion region;
+
+    private final BitArray visibleSections = new BitArray(RenderRegion.REGION_SIZE);
 
     private final byte[] sectionsWithGeometry = new byte[RenderRegion.REGION_SIZE + 1];
     private int sectionsWithGeometryCount = 0;
@@ -35,24 +39,31 @@ public class ChunkRenderList {
 
         this.size = 0;
         this.lastVisibleFrame = frame;
+
+        this.visibleSections.clear();
     }
 
-    public void add(RenderSection render) {
+    public void add(int sectionIndex, int sectionFlags) {
         if (this.size >= RenderRegion.REGION_SIZE) {
             throw new ArrayIndexOutOfBoundsException("Render list is full");
         }
 
-        int index = render.getSectionIndex();
-        int flags = render.getFlags();
+        this.visibleSections.set(sectionIndex);
 
-        this.sectionsWithGeometry[this.sectionsWithGeometryCount] = (byte) index;
-        this.sectionsWithGeometryCount += (flags >>> RenderSectionFlags.HAS_BLOCK_GEOMETRY) & 1;
+        this.sectionsWithGeometry[this.sectionsWithGeometryCount] = (byte) sectionIndex;
+        this.sectionsWithGeometryCount += (sectionFlags >>> GraphNodeFlags.HAS_BLOCK_GEOMETRY) & 1;
 
-        this.sectionsWithSprites[this.sectionsWithSpritesCount] = (byte) index;
-        this.sectionsWithSpritesCount += (flags >>> RenderSectionFlags.HAS_ANIMATED_SPRITES) & 1;
+        this.sectionsWithSprites[this.sectionsWithSpritesCount] = (byte) sectionIndex;
+        this.sectionsWithSpritesCount += (sectionFlags >>> GraphNodeFlags.HAS_ANIMATED_SPRITES) & 1;
 
-        this.sectionsWithEntities[this.sectionsWithEntitiesCount] = (byte) index;
-        this.sectionsWithEntitiesCount += (flags >>> RenderSectionFlags.HAS_BLOCK_ENTITIES) & 1;
+        this.sectionsWithEntities[this.sectionsWithEntitiesCount] = (byte) sectionIndex;
+        this.sectionsWithEntitiesCount += (sectionFlags >>> GraphNodeFlags.HAS_BLOCK_ENTITIES) & 1;
+
+        this.size++;
+    }
+
+    public boolean isSectionVisible(int sectionIndex) {
+        return this.visibleSections.get(sectionIndex);
     }
 
     public @Nullable ByteIterator sectionsWithGeometryIterator(boolean reverse) {
@@ -91,10 +102,6 @@ public class ChunkRenderList {
         return this.sectionsWithEntitiesCount;
     }
 
-    public int getSize() {
-        return this.size;
-    }
-
     public int getLastVisibleFrame() {
         return this.lastVisibleFrame;
     }
@@ -102,5 +109,4 @@ public class ChunkRenderList {
     public RenderRegion getRegion() {
         return this.region;
     }
-
 }

@@ -1,48 +1,42 @@
 package me.jellysquid.mods.sodium.client.render.chunk.lists;
 
-import me.jellysquid.mods.sodium.client.render.chunk.ChunkUpdateType;
-import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import me.jellysquid.mods.sodium.client.render.chunk.occlusion.GraphNodeFlags;
+import me.jellysquid.mods.sodium.client.render.chunk.occlusion.GraphNodeVisitor;
+import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
 
-import java.util.ArrayDeque;
-import java.util.EnumMap;
-import java.util.Map;
-import java.util.Queue;
-import java.util.function.Consumer;
-
-public class VisibleChunkCollector implements Consumer<RenderSection> {
-    private final SortedRenderLists.Builder sortedRenderLists;
-    private final EnumMap<ChunkUpdateType, ArrayDeque<RenderSection>> sortedRebuildLists;
+public class VisibleChunkCollector implements GraphNodeVisitor {
+    private final ObjectArrayList<ChunkRenderList> renderLists = new ObjectArrayList<>();
+    private final int frame;
 
     public VisibleChunkCollector(int frame) {
-        this.sortedRenderLists = new SortedRenderLists.Builder(frame);
-        this.sortedRebuildLists = new EnumMap<>(ChunkUpdateType.class);
-
-        for (var type : ChunkUpdateType.values()) {
-            this.sortedRebuildLists.put(type, new ArrayDeque<>());
-        }
+        this.frame = frame;
     }
 
     @Override
-    public void accept(RenderSection section) {
-        if (section.getFlags() != 0) {
-            this.sortedRenderLists.add(section);
+    public void visit(RenderRegion region, int sectionIndex, int sectionFlags) {
+        if (GraphNodeFlags.containsRenderData(sectionFlags)) {
+            this.addToRenderLists(region, sectionIndex, sectionFlags);
         }
-
-        this.addToRebuildLists(section);
     }
 
-    private void addToRebuildLists(RenderSection section) {
-        if (section.getPendingUpdate() != null && section.getBuildCancellationToken() == null) {
-            Queue<RenderSection> queue = this.sortedRebuildLists.get(section.getPendingUpdate());
-            queue.add(section);
+    private void addToRenderLists(RenderRegion region, int sectionIndex, int sectionFlags) {
+        ChunkRenderList list = region.getRenderList();
+
+        if (list.getLastVisibleFrame() != this.frame) {
+            this.prepareList(list);
         }
+
+        list.add(sectionIndex, sectionFlags);
+    }
+
+    private void prepareList(ChunkRenderList list) {
+        list.reset(this.frame);
+
+        this.renderLists.add(list);
     }
 
     public SortedRenderLists createRenderLists() {
-        return this.sortedRenderLists.build();
-    }
-
-    public Map<ChunkUpdateType, ArrayDeque<RenderSection>> getRebuildLists() {
-        return this.sortedRebuildLists;
+        return new SortedRenderLists(this.renderLists);
     }
 }

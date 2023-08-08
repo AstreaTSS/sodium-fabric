@@ -194,7 +194,7 @@ public class SodiumWorldRenderer {
 
         profiler.swap("chunk_update");
 
-        this.renderSectionManager.updateChunks(updateChunksImmediately);
+        this.renderSectionManager.updateChunks(camera, updateChunksImmediately);
 
         if (updateChunksImmediately) {
             profiler.swap("chunk_upload_immediately");

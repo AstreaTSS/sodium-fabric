@@ -28,4 +28,9 @@ public final class Viewport {
         // passed all frustum checks
         return true;
     }
+
+    public boolean isBoxVisible(double x, double y, double z, double size) {
+        return this.isBoxVisible(x - size, y - size, z - size,
+                x + size, y + size, z + size);
+    }
 }

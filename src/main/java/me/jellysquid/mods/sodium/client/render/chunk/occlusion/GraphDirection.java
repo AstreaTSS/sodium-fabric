@@ -3,12 +3,12 @@ package me.jellysquid.mods.sodium.client.render.chunk.occlusion;
 import net.minecraft.util.math.Direction;
 
 public class GraphDirection {
-    public static final int DOWN    = 0;
-    public static final int UP      = 1;
-    public static final int NORTH   = 2;
-    public static final int SOUTH   = 3;
-    public static final int WEST    = 4;
-    public static final int EAST    = 5;
+    public static final int NEG_X = 0;
+    public static final int POS_X = 1;
+    public static final int NEG_Y = 2;
+    public static final int POS_Y = 3;
+    public static final int NEG_Z = 4;
+    public static final int POS_Z = 5;
 
 
     public static final int COUNT   = 6;
@@ -22,32 +22,32 @@ public class GraphDirection {
 
     static {
         OPPOSITE = new int[COUNT];
-        OPPOSITE[DOWN] = UP;
-        OPPOSITE[UP] = DOWN;
-        OPPOSITE[NORTH] = SOUTH;
-        OPPOSITE[SOUTH] = NORTH;
-        OPPOSITE[WEST] = EAST;
-        OPPOSITE[EAST] = WEST;
+        OPPOSITE[NEG_X] = POS_X;
+        OPPOSITE[POS_X] = NEG_X;
+        OPPOSITE[NEG_Y] = POS_Y;
+        OPPOSITE[POS_Y] = NEG_Y;
+        OPPOSITE[NEG_Z] = POS_Z;
+        OPPOSITE[POS_Z] = NEG_Z;
 
         X = new int[COUNT];
-        X[WEST] = -1;
-        X[EAST] = 1;
+        X[NEG_X] = -1;
+        X[POS_X] = 1;
 
         Y = new int[COUNT];
-        Y[DOWN] = -1;
-        Y[UP] = 1;
+        Y[NEG_Y] = -1;
+        Y[POS_Y] = 1;
 
         Z = new int[COUNT];
-        Z[NORTH] = -1;
-        Z[SOUTH] = 1;
+        Z[NEG_Z] = -1;
+        Z[POS_Z] = 1;
 
         ENUMS = new Direction[COUNT];
-        ENUMS[DOWN] = Direction.DOWN;
-        ENUMS[UP] = Direction.UP;
-        ENUMS[NORTH] = Direction.NORTH;
-        ENUMS[SOUTH] = Direction.SOUTH;
-        ENUMS[WEST] = Direction.WEST;
-        ENUMS[EAST] = Direction.EAST;
+        ENUMS[NEG_X] = Direction.WEST;
+        ENUMS[POS_X] = Direction.EAST;
+        ENUMS[NEG_Y] = Direction.DOWN;
+        ENUMS[POS_Y] = Direction.UP;
+        ENUMS[NEG_Z] = Direction.NORTH;
+        ENUMS[POS_Z] = Direction.SOUTH;
     }
 
     public static int opposite(int direction) {
@@ -68,5 +68,9 @@ public class GraphDirection {
 
     public static Direction toEnum(int direction) {
         return ENUMS[direction];
+    }
+
+    public static boolean contains(int bitfield, int direction) {
+        return (bitfield & (1 << direction)) != 0;
     }
 }
