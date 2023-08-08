@@ -2,7 +2,7 @@ package me.jellysquid.mods.sodium.client.render.viewport;
 
 import org.joml.FrustumIntersection;
 
-public class Viewport {
+public final class Viewport {
     private final FrustumIntersection[] frustums;
     private final double x, y, z;
 
@@ -27,5 +27,10 @@ public class Viewport {
 
         // passed all frustum checks
         return true;
+    }
+
+    public boolean isBoxVisible(double x, double y, double z, double size) {
+        return this.isBoxVisible(x - size, y - size, z - size,
+                x + size, y + size, z + size);
     }
 }

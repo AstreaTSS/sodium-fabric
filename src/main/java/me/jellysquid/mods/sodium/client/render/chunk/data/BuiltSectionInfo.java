@@ -1,8 +1,8 @@
 package me.jellysquid.mods.sodium.client.render.chunk.data;
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import me.jellysquid.mods.sodium.client.render.chunk.RenderSectionFlags;
-import me.jellysquid.mods.sodium.client.render.chunk.graph.VisibilityEncoding;
+import me.jellysquid.mods.sodium.client.render.chunk.occlusion.GraphNodeFlags;
+import me.jellysquid.mods.sodium.client.render.chunk.occlusion.VisibilityEncoding;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
 import me.jellysquid.mods.sodium.client.render.texture.SpriteUtil;
 import net.minecraft.block.entity.BlockEntity;
@@ -38,18 +38,18 @@ public class BuiltSectionInfo {
         this.culledBlockEntities = toArray(culledBlockEntities, BlockEntity[]::new);
         this.animatedSprites = toArray(animatedSprites, Sprite[]::new);
 
-        int flags = 0;
+        int flags = 1 << GraphNodeFlags.IS_LOADED;
 
         if (!blockRenderPasses.isEmpty()) {
-            flags |= 1 << RenderSectionFlags.HAS_BLOCK_GEOMETRY;
+            flags |= 1 << GraphNodeFlags.HAS_BLOCK_GEOMETRY;
         }
 
         if (!culledBlockEntities.isEmpty()) {
-            flags |= 1 << RenderSectionFlags.HAS_BLOCK_ENTITIES;
+            flags |= 1 << GraphNodeFlags.HAS_BLOCK_ENTITIES;
         }
 
         if (!animatedSprites.isEmpty()) {
-            flags |= 1 << RenderSectionFlags.HAS_ANIMATED_SPRITES;
+            flags |= 1 << GraphNodeFlags.HAS_ANIMATED_SPRITES;
         }
 
         this.flags = flags;

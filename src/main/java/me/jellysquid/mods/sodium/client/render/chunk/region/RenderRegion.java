@@ -7,12 +7,18 @@ import me.jellysquid.mods.sodium.client.gl.buffer.GlBuffer;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.gl.tessellation.GlTessellation;
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
+import me.jellysquid.mods.sodium.client.render.chunk.data.BuiltSectionInfo;
 import me.jellysquid.mods.sodium.client.render.chunk.data.SectionRenderDataStorage;
+import me.jellysquid.mods.sodium.client.render.chunk.lists.ChunkRenderList;
+import me.jellysquid.mods.sodium.client.render.chunk.occlusion.GraphNodeFlags;
+import me.jellysquid.mods.sodium.client.render.chunk.occlusion.GraphRegionData;
+import me.jellysquid.mods.sodium.client.render.chunk.occlusion.VisibilityEncoding;
 import me.jellysquid.mods.sodium.client.render.chunk.terrain.TerrainRenderPass;
 import me.jellysquid.mods.sodium.client.render.chunk.vertex.format.ChunkMeshFormats;
 import me.jellysquid.mods.sodium.client.util.MathUtil;
 import net.minecraft.util.math.ChunkSectionPos;
 import org.apache.commons.lang3.Validate;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -22,13 +28,13 @@ public class RenderRegion {
     public static final int REGION_HEIGHT = 4;
     public static final int REGION_LENGTH = 8;
 
-    private static final int REGION_WIDTH_M = RenderRegion.REGION_WIDTH - 1;
-    private static final int REGION_HEIGHT_M = RenderRegion.REGION_HEIGHT - 1;
-    private static final int REGION_LENGTH_M = RenderRegion.REGION_LENGTH - 1;
+    public static final int REGION_WIDTH_M = RenderRegion.REGION_WIDTH - 1;
+    public static final int REGION_HEIGHT_M = RenderRegion.REGION_HEIGHT - 1;
+    public static final int REGION_LENGTH_M = RenderRegion.REGION_LENGTH - 1;
 
-    protected static final int REGION_WIDTH_SH = Integer.bitCount(REGION_WIDTH_M);
-    protected static final int REGION_HEIGHT_SH = Integer.bitCount(REGION_HEIGHT_M);
-    protected static final int REGION_LENGTH_SH = Integer.bitCount(REGION_LENGTH_M);
+    public static final int REGION_WIDTH_SH = Integer.bitCount(REGION_WIDTH_M);
+    public static final int REGION_HEIGHT_SH = Integer.bitCount(REGION_HEIGHT_M);
+    public static final int REGION_LENGTH_SH = Integer.bitCount(REGION_LENGTH_M);
 
     public static final int REGION_SIZE = REGION_WIDTH * REGION_HEIGHT * REGION_LENGTH;
 
@@ -41,11 +47,15 @@ public class RenderRegion {
     private final StagingBuffer stagingBuffer;
     private final int x, y, z;
 
-    private final RenderSection[] sections = new RenderSection[RenderRegion.REGION_SIZE];
+    private final ChunkRenderList renderList;
+
+    private final RenderSection[] sectionRenders = new RenderSection[RenderRegion.REGION_SIZE];
     private int sectionCount;
 
     private final Map<TerrainRenderPass, SectionRenderDataStorage> sectionRenderData = new Reference2ReferenceOpenHashMap<>();
     private DeviceResources resources;
+
+    private final GraphRegionData graphData;
 
     public RenderRegion(int x, int y, int z, StagingBuffer stagingBuffer) {
         this.x = x;
@@ -53,6 +63,9 @@ public class RenderRegion {
         this.z = z;
 
         this.stagingBuffer = stagingBuffer;
+        this.renderList = new ChunkRenderList(this);
+
+        this.graphData = new GraphRegionData();
     }
 
     public static long key(int x, int y, int z) {
@@ -95,7 +108,7 @@ public class RenderRegion {
             this.resources = null;
         }
 
-        Arrays.fill(this.sections, null);
+        Arrays.fill(this.sectionRenders, null);
     }
 
     public boolean isEmpty() {
@@ -128,19 +141,21 @@ public class RenderRegion {
 
     public void addSection(RenderSection section) {
         var sectionIndex = section.getSectionIndex();
-        var prev = this.sections[sectionIndex];
+        var prev = this.sectionRenders[sectionIndex];
 
         if (prev != null) {
             throw new IllegalStateException("Section has already been added to the region");
         }
 
-        this.sections[sectionIndex] = section;
+        this.sectionRenders[sectionIndex] = section;
         this.sectionCount++;
+
+        this.graphData.setNodeData(sectionIndex, VisibilityEncoding.NULL, 1 << GraphNodeFlags.IS_LOADED);
     }
 
     public void removeSection(RenderSection section) {
         var sectionIndex = section.getSectionIndex();
-        var prev = this.sections[sectionIndex];
+        var prev = this.sectionRenders[sectionIndex];
 
         if (prev == null) {
             throw new IllegalStateException("Section was not loaded within the region");
@@ -152,12 +167,14 @@ public class RenderRegion {
             storage.removeMeshes(sectionIndex);
         }
 
-        this.sections[sectionIndex] = null;
+        this.sectionRenders[sectionIndex] = null;
         this.sectionCount--;
+
+        this.graphData.removeNodeData(sectionIndex);
     }
 
-    public RenderSection getSection(int id) {
-        return this.sections[id];
+    public RenderSection getSection(int sectionIndex) {
+        return this.sectionRenders[sectionIndex];
     }
 
     public DeviceResources getResources() {
@@ -177,6 +194,22 @@ public class RenderRegion {
             this.resources.delete(commandList);
             this.resources = null;
         }
+    }
+
+    public ChunkRenderList getRenderList() {
+        return this.renderList;
+    }
+
+    public GraphRegionData getGraphData() {
+        return this.graphData;
+    }
+
+    public void setRenderState(int sectionIndex, @NotNull BuiltSectionInfo info) {
+        this.graphData.setNodeData(sectionIndex, info.visibilityData, info.flags);
+    }
+
+    public void clearRenderState(int sectionIndex) {
+        this.graphData.removeNodeData(sectionIndex);
     }
 
     public static class DeviceResources {

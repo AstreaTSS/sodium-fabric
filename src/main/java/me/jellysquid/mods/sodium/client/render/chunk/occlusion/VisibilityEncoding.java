@@ -1,4 +1,4 @@
-package me.jellysquid.mods.sodium.client.render.chunk.graph;
+package me.jellysquid.mods.sodium.client.render.chunk.occlusion;
 
 
 import net.minecraft.client.render.chunk.ChunkOcclusionData;
@@ -26,7 +26,7 @@ public class VisibilityEncoding {
     }
 
     // Returns a merged bit-field of the outgoing directions for each incoming direction
-    public static int getConnections(long visibilityData, int incomingDirections) {
+    public static int getOutgoingConnections(long visibilityData, int incomingDirections) {
         long outgoing = (((0b0000001_0000001_0000001_0000001_0000001_0000001L * Integer.toUnsignedLong(incomingDirections)) & 0x010101010101L) * 0xFF) // turn bitmask into lane wise mask
             & visibilityData; // apply visibility to incoming
         outgoing |= outgoing >> 32; // fold top 32 bits onto bottom 32 bits

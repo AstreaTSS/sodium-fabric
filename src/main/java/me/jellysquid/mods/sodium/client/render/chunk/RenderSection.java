@@ -1,13 +1,11 @@
 package me.jellysquid.mods.sodium.client.render.chunk;
 
 import me.jellysquid.mods.sodium.client.render.chunk.data.BuiltSectionInfo;
-import me.jellysquid.mods.sodium.client.render.chunk.graph.VisibilityEncoding;
+import me.jellysquid.mods.sodium.client.render.chunk.occlusion.GraphNodeFlags;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
-import me.jellysquid.mods.sodium.client.util.DirectionUtil;
 import me.jellysquid.mods.sodium.client.util.task.CancellationToken;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.texture.Sprite;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkSectionPos;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -24,30 +22,14 @@ public class RenderSection {
     // Chunk Section State
     private final int chunkX, chunkY, chunkZ;
 
-    // Occlusion Culling State
-    private final RenderSection[] adjacent = new RenderSection[DirectionUtil.ALL_DIRECTIONS.length];
-    private long visibilityData = VisibilityEncoding.NULL;
-    private int incomingDirections;
-    private int lastVisibleFrame = -1;
-
-
     // Rendering State
     private boolean built = false; // merge with the flags?
-    private int flags = RenderSectionFlags.NONE;
+    private int flags = GraphNodeFlags.NONE;
     private BlockEntity @Nullable[] globalBlockEntities;
     private BlockEntity @Nullable[] culledBlockEntities;
     private Sprite @Nullable[] animatedSprites;
 
-
-    // Pending Update State
-    @Nullable
-    private CancellationToken buildCancellationToken = null;
-
-    @Nullable
-    private ChunkUpdateType pendingUpdateType;
-
-    private int lastBuiltFrame = -1;
-    private int lastSubmittedFrame = -1;
+    private int lastBuiltTime;
 
     // Lifetime state
     private boolean disposed;
@@ -61,17 +43,9 @@ public class RenderSection {
         int rY = this.getChunkY() & (RenderRegion.REGION_HEIGHT - 1);
         int rZ = this.getChunkZ() & (RenderRegion.REGION_LENGTH - 1);
 
-        this.sectionIndex = LocalSectionIndex.pack(rX, rY, rZ);
+        this.sectionIndex = LocalSectionIndex.fromGlobal(rX, rY, rZ);
 
         this.region = region;
-    }
-
-    public RenderSection getAdjacent(int direction) {
-        return this.adjacent[direction];
-    }
-
-    public void setAdjacentNode(int direction, RenderSection node) {
-        this.adjacent[direction] = node;
     }
 
     /**
@@ -80,11 +54,6 @@ public class RenderSection {
      * be used.
      */
     public void delete() {
-        if (this.buildCancellationToken != null) {
-            this.buildCancellationToken.setCancelled();
-            this.buildCancellationToken = null;
-        }
-
         this.clearRenderState();
         this.disposed = true;
     }
@@ -100,19 +69,23 @@ public class RenderSection {
     private void setRenderState(@NotNull BuiltSectionInfo info) {
         this.built = true;
         this.flags = info.flags;
-        this.visibilityData = info.visibilityData;
         this.globalBlockEntities = info.globalBlockEntities;
         this.culledBlockEntities = info.culledBlockEntities;
         this.animatedSprites = info.animatedSprites;
+
+        var region = this.region;
+        region.setRenderState(this.sectionIndex, info);
     }
 
     private void clearRenderState() {
         this.built = false;
-        this.flags = RenderSectionFlags.NONE;
-        this.visibilityData = VisibilityEncoding.NULL;
+        this.flags = GraphNodeFlags.NONE;
         this.globalBlockEntities = null;
         this.culledBlockEntities = null;
         this.animatedSprites = null;
+
+        var region = this.region;
+        region.clearRenderState(this.sectionIndex);
     }
 
     /**
@@ -141,46 +114,6 @@ public class RenderSection {
      */
     public int getOriginZ() {
         return this.chunkZ << 4;
-    }
-
-    /**
-     * @return The squared distance from the center of this chunk in the world to the center of the block position
-     * given by {@param pos}
-     */
-    public float getSquaredDistance(BlockPos pos) {
-        return this.getSquaredDistance(pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
-    }
-
-    /**
-     * @return The squared distance from the center of this chunk in the world to the given position
-     */
-    public float getSquaredDistance(float x, float y, float z) {
-        float xDist = x - this.getCenterX();
-        float yDist = y - this.getCenterY();
-        float zDist = z - this.getCenterZ();
-
-        return (xDist * xDist) + (yDist * yDist) + (zDist * zDist);
-    }
-
-    /**
-     * @return The x-coordinate of the center position of this chunk render
-     */
-    private int getCenterX() {
-        return this.getOriginX() + 8;
-    }
-
-    /**
-     * @return The y-coordinate of the center position of this chunk render
-     */
-    private int getCenterY() {
-        return this.getOriginY() + 8;
-    }
-
-    /**
-     * @return The z-coordinate of the center position of this chunk render
-     */
-    private int getCenterZ() {
-        return this.getOriginZ() + 8;
     }
 
     public int getChunkX() {
@@ -219,38 +152,11 @@ public class RenderSection {
         return this.region;
     }
 
-    public void setLastVisibleFrame(int frame) {
-        this.lastVisibleFrame = frame;
-    }
-
-    public int getLastVisibleFrame() {
-        return this.lastVisibleFrame;
-    }
-
-    public int getIncomingDirections() {
-        return this.incomingDirections;
-    }
-
-    public void addIncomingDirections(int directions) {
-        this.incomingDirections |= directions;
-    }
-
-    public void setIncomingDirections(int directions) {
-        this.incomingDirections = directions;
-    }
-
     /**
-     * Returns a bitfield containing the {@link RenderSectionFlags} for this built section.
+     * Returns a bitfield containing the {@link GraphNodeFlags} for this built section.
      */
     public int getFlags() {
         return this.flags;
-    }
-
-    /**
-     * Returns the occlusion culling data which determines this chunk's connectedness on the visibility graph.
-     */
-    public long getVisibilityData() {
-        return this.visibilityData;
     }
 
     /**
@@ -275,35 +181,15 @@ public class RenderSection {
         return this.globalBlockEntities;
     }
 
-    public @Nullable CancellationToken getBuildCancellationToken() {
-        return this.buildCancellationToken;
-    }
-
-    public void setBuildCancellationToken(@Nullable CancellationToken token) {
-        this.buildCancellationToken = token;
-    }
-
-    public @Nullable ChunkUpdateType getPendingUpdate() {
-        return this.pendingUpdateType;
-    }
-
-    public void setPendingUpdate(@Nullable ChunkUpdateType type) {
-        this.pendingUpdateType = type;
+    public long getGlobalCoord() {
+        return ChunkSectionPos.asLong(this.getChunkX(), this.getChunkY(), this.getChunkZ());
     }
 
     public int getLastBuiltFrame() {
-        return this.lastBuiltFrame;
+        return this.lastBuiltTime;
     }
 
-    public void setLastBuiltFrame(int lastBuiltFrame) {
-        this.lastBuiltFrame = lastBuiltFrame;
-    }
-
-    public int getLastSubmittedFrame() {
-        return this.lastSubmittedFrame;
-    }
-
-    public void setLastSubmittedFrame(int lastSubmittedFrame) {
-        this.lastSubmittedFrame = lastSubmittedFrame;
+    public void setLastBuiltTime(int time) {
+        this.lastBuiltTime = time;
     }
 }
